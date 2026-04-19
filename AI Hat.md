@@ -126,83 +126,102 @@ Hailo Python ready
 
 ### Step 6: Troubleshooting
 
-Initially, after installing the pcie driver and the runtime 
+We ran into an issue intially after installation. First run `dmesg | grep hailo`. You will get the following:
 
 ```
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $ dmesg | grep hailo [ 3.055171] hailo_pci: loading out-of-tree module taints kernel. [ 3.060775] hailo: Init module. driver version 4.23.0 [ 3.060867] hailo 0001:01:00.0: Probing on: 1e60:2864... [ 3.060870] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072 [ 3.060884] hailo 0001:01:00.0: enabling device (0000 -> 0002) [ 3.060889] hailo 0001:01:00.0: Probing: Device enabled [ 3.060904] hailo 0001:01:00.0: Probing: mapped bar 0 - 0000000054225f0c 16384 [ 3.060908] hailo 0001:01:00.0: Probing: mapped bar 2 - 000000006f5a0a16 4096 [ 3.060911] hailo 0001:01:00.0: Probing: mapped bar 4 - 0000000025430d0e 16384 [ 3.060914] hailo 0001:01:00.0: Probing: Setting max_desc_page_size to 16384, (page_size=16384) [ 3.060922] hailo 0001:01:00.0: Probing: Enabled 64 bit dma [ 3.060924] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers [ 3.060926] hailo 0001:01:00.0: Disabling ASPM L0s [ 3.060929] hailo 0001:01:00.0: Successfully disabled ASPM L0s [ 3.061009] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin [ 3.104052] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully [ 3.104059] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin [ 3.104083] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully [ 3.104085] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin [ 3.104092] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully [ 3.219863] hailo 0001:01:00.0: NNC Firmware loaded successfully [ 3.219870] hailo 0001:01:00.0: FW loaded, took 158 ms [ 3.231991] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0 (hailo_env) rza@rp5-pios:~/Desktop/streamer $ cat /sys/module/hailo_pci/parameters/* 2>/dev/null 0 N 0 N N 5 Y (hailo_env) rza@rp5-pios:~/Desktop/streamer $
+[ 3.055171] hailo_pci: loading out-of-tree module taints kernel.
+[ 3.060775] hailo: Init module. driver version 4.23.0
+[ 3.060867] hailo 0001:01:00.0: Probing on: 1e60:2864...
+[ 3.060870] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072
+[ 3.060884] hailo 0001:01:00.0: enabling device (0000 -> 0002)
+[ 3.060889] hailo 0001:01:00.0: Probing: Device enabled
+[ 3.060904] hailo 0001:01:00.0: Probing: mapped bar 0 - 0000000054225f0c 16384
+[ 3.060908] hailo 0001:01:00.0: Probing: mapped bar 2 - 000000006f5a0a16 4096
+[ 3.060911] hailo 0001:01:00.0: Probing: mapped bar 4 - 0000000025430d0e 16384
+[ 3.060914] hailo 0001:01:00.0: Probing: Setting max_desc_page_size to 16384, (page_size=16384) [ 3.060922] hailo 0001:01:00.0: Probing: Enabled 64 bit dma
+[ 3.060924] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers
+[ 3.060926] hailo 0001:01:00.0: Disabling ASPM L0s
+[ 3.060929] hailo 0001:01:00.0: Successfully disabled ASPM L0s
+[ 3.061009] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin
+[ 3.104052] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully
+[ 3.104059] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin
+[ 3.104083] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully [ 3.104085] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin
+[ 3.104092] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully
+[ 3.219863] hailo 0001:01:00.0: NNC Firmware loaded successfully
+[ 3.219870] hailo 0001:01:00.0: FW loaded, took 158 ms
+[ 3.231991] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
 ```
 
-Now, when we try to open a .hef model, and run infernece on a img, we get 
+Now we have this script:
 
 ```
-[HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) Traceback (most recent call last): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3573, in configure configured_ngs_handles = self._vdevice.configure(hef._hef, configure_params_by_name) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ hailo_platform.pyhailort._pyhailort.HailoRTStatusException: 8 The above exception was the direct cause of the following exception: Traceback (most recent call last): File "/home/rza/Desktop/streamer/camtest.py", line 8, in <module> network_group = target.configure(hef)[0] ^^^^^^^^^^^^^^^^^^^^^ File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3572, in configure with ExceptionWrapper(): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 122, in __exit__ self._raise_indicative_status_exception(value) File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 172, in _raise_indicative_status_exception raise self.create_exception_from_status(error_code) from libhailort_exception hailo_platform.pyhailort.pyhailort.HailoRTException: libhailort failed with error: 8 (HAILO_INTERNAL_FAILURE)
+from picamera2 import Picamera2
+import cv2
+import hailo_platform as hailo
+import numpy as np
+
+hef = hailo.HEF("yolov8s.hef")
+with hailo.VDevice() as target:
+
+    configure_params = hailo.ConfigureParams.create_from_hef(hef, interface=hailo.HailoStreamInterface.PCIe)
+    network_group = target.configure(hef, configure_params)[0]
+    network_group_params = network_group.create_params() input_vstream_info = hef.get_input_vstream_infos()[0]
+    output_vstream_infos = hef.get_output_vstream_infos()
+    input_vstreams_params = hailo.InputVStreamParams.make_from_network_group(network_group, quantized=False, format_type=hailo.FormatType.FLOAT32)
+    output_vstreams_params = hailo.OutputVStreamParams.make_from_network_group(network_group, quantized=False, format_type=hailo.FormatType.FLOAT32)
+
+    with network_group.activate(network_group_params):
+        with hailo.InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
+
+            picam2 = Picamera2()
+            config = picam2.create_preview_configuration(main = {"size": (640, 640), "format": "RGB888"}, controls = {"FrameRate": 1} )
+            picam2.configure(config)
+            picam2.start()
+
+            while True:
+
+                frame = picam2.capture_array()
+                frame_resized = cv2.resize(frame, (640, 640))
+                frame_resized_uint8 = np.expand_dims(frame_resized.astype(np.float32), axis=0)
+                input_data = {input_vstream_info.name: frame_resized_uint8}
+    
+                results = infer_pipeline.infer(input_data)
+                print("Raw output keys: ", results.keys())
+    
+                cv2.imshow("Camera", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+            cv2.destroyAllWindows()
+            picam2.stop()
 ```
 
-next we do 
+When we run it we get the following
 
 ```
-sudo rm /etc/modprobe.d/hailo.conf
-sudo reboot
+[HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8)
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8)
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8)
+libhailort failed with error: 8 (HAILO_INTERNAL_FAILURE)
 ```
 
-i get 
+The primary error here is a driver/hardware mismatch: `max_desc_page_size given 16384 is bigger than hw max desc page size 4096`
 
-```
-rza@rp5-pios:~ $ dmesg | grep hailo
-[ 3.088922] hailo_pci: loading out-of-tree module taints kernel.
-[ 3.094526] hailo: Init module. driver version 4.23.0
-[ 3.094590] hailo 0001:01:00.0: Probing on: 1e60:2864...
-[ 3.094593] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072
-[ 3.094608] hailo 0001:01:00.0: enabling device (0000 -> 0002)
-[ 3.094613] hailo 0001:01:00.0: Probing: Device enabled
-[ 3.094622] hailo 0001:01:00.0: Probing: mapped bar 0 - 00000000efc20fcf 16384
-[ 3.094626] hailo 0001:01:00.0: Probing: mapped bar 2 - 0000000061c0b09a 4096
-[ 3.094630] hailo 0001:01:00.0: Probing: mapped bar 4 - 00000000566d0cc4 16384
-[ 3.094633] hailo 0001:01:00.0: Probing: Setting max_desc_page_size to 16384, (page_size=16384) [ 3.094640] hailo 0001:01:00.0: Probing: Enabled 64 bit dma
-[ 3.094642] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers
-[ 3.094644] hailo 0001:01:00.0: Disabling ASPM L0s
-[ 3.094647] hailo 0001:01:00.0: Successfully disabled ASPM L0s
-[ 3.094723] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin
-[ 3.134787] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully
-[ 3.134796] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin
-[ 3.134819] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully
-[ 3.134822] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin
-[ 3.134830] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully
-[ 3.250599] hailo 0001:01:00.0: NNC Firmware loaded successfully
-[ 3.250607] hailo 0001:01:00.0: FW loaded, took 155 ms
-[ 3.261820] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
+Think of the hailo chip as a mail sorting machine: The driver tells it 'i will send you big envelopees (16kb pages)'. But the hardware replies: 'I only accept small envelopes (4kb max)'. So the system refuses to start. That is what is happening here:
 
-rza@rp5-pios:~ $ source hailo_env/bin/activate
+max_desc_page_size controls DMA descriptor buffer sizes. Our driver defaulted to 16384 bytes,  but our hailo8 hardware supports 4096 bytes max. So, HailoRT aborts during configure() with HAILO_INTERNAL_FAILURE (8). 
 
-(hailo_env) rza@rp5-pios:~ $ cd Desktop/ 
-(hailo_env) rza@rp5-pios:~/Desktop $ cd streamer/
-
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $ python camtest.py [HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) Traceback (most recent call last): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3573, in configure configured_ngs_handles = self._vdevice.configure(hef._hef, configure_params_by_name) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ hailo_platform.pyhailort._pyhailort.HailoRTStatusException: 8 The above exception was the direct cause of the following exception: Traceback (most recent call last): File "/home/rza/Desktop/streamer/camtest.py", line 9, in <module> network_group = target.configure(hef, configure_params)[0] ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3572, in configure with ExceptionWrapper(): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 122, in __exit__ self._raise_indicative_status_exception(value) File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 172, in _raise_indicative_status_exception raise self.create_exception_from_status(error_code) from libhailort_exception hailo_platform.pyhailort.pyhailort.HailoRTException: libhailort failed with error: 8 (HAILO_INTERNAL_FAILURE)
-
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $ hailortcli scan
-Hailo Devices: [-] Device: 0001:01:00.0
-
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $
-```
-
-now do this
+Next, edit the hailo configuration file and add this line `options hailo_pci force_desc_page_size=4096`
 
 ```
 rza@rp5-pios:~ $ sudo nano /etc/modprobe.d/hailo.conf
-```
-
-add this to the .conf file
-
-```
 options hailo_pci force_desc_page_size=4096
 ```
 
-finally
+finally, make sure the new configuration is applied every boot, and reboot
 
 ```
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $ cat /etc/modprobe.d/hailo.conf
-options hailo_pci force_desc_page_size=4096
-
 (hailo_env) rza@rp5-pios:~/Desktop/streamer $ sudo update-initramfs -u
 update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-v8 '/boot/initrd.img-6.12.75+rpt-rpi-v8' -> '/boot/firmware/initramfs8'
 update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-2712 '/boot/initrd.img-6.12.75+rpt-rpi-2712' -> '/boot/firmware/initramfs_2712'
@@ -210,14 +229,9 @@ update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-2712 '/boot/initrd
 rza@rp5-pios:~ $ sudo reboot
 ```
 
-check
+now, run `dmesg | grep hailo`, you should see `Force setting max_desc_page_size to 4096`:
 
 ```
-rza@rp5-pios:~ $ dmesg | grep -i desc
-```
-
-```
-rza@rp5-pios:~ $ dmesg | grep hailo
 [ 3.160062] hailo_pci: loading out-of-tree module taints kernel.
 [ 3.167468] hailo: Init module. driver version 4.23.0
 [ 3.168684] hailo 0001:01:00.0: Probing on: 1e60:2864...
@@ -238,19 +252,72 @@ rza@rp5-pios:~ $ dmesg | grep hailo
 [ 3.329233] hailo 0001:01:00.0: NNC Firmware loaded successfully
 [ 3.329240] hailo 0001:01:00.0: FW loaded, took 160 ms
 [ 3.341398] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
+```
 
-rza@rp5-pios:~ $ source hailo_env/bin/activate
-(hailo_env) rza@rp5-pios:~ $ cd Desktop/
-(hailo_env) rza@rp5-pios:~/Desktop $ cd streamer/
+Great, now try running again...
+
+```
 (hailo_env) rza@rp5-pios:~/Desktop/streamer $ python camtest.py
 [HailoRT] [error] CHECK failed - The given output format type UINT8 is not supported, should be HAILO_FORMAT_TYPE_FLOAT32
 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
-[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2) Traceback (most recent call last): File "/home/rza/Desktop/streamer/camtest.py", line 16, in <module> with hailo.InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline: File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 939, in __enter__ self._infer_pipeline = _pyhailort.InferVStreams(self._configured_net_group._configured_network, ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ hailo_platform.pyhailort._pyhailort.HailoRTStatusException: 2
-
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
 ```
 
-finally, use FLOAT32 rather than Uint8 in the code,  and when we run it now, it works.
+Make the final changes to fix tehre reminaing error 
+
+```
+from picamera2 import Picamera2
+import cv2
+import hailo_platform as hailo
+import numpy as np
+
+hef = hailo.HEF("yolov8s.hef")
+with hailo.VDevice() as target:
+
+    configure_params = hailo.ConfigureParams.create_from_hef(hef, interface=hailo.HailoStreamInterface.PCIe)
+    network_group = target.configure(hef, configure_params)[0]
+    network_group_params = network_group.create_params() input_vstream_info = hef.get_input_vstream_infos()[0]
+    output_vstream_infos = hef.get_output_vstream_infos()
+    input_vstreams_params = hailo.InputVStreamParams.make_from_network_group(
+        network_group,
+        quantized=False,
+        format_type=hailo.FormatType.FLOAT32
+    )
+    output_vstreams_params = hailo.OutputVStreamParams.make_from_network_group(
+        network_group,
+        quantized=False,
+        format_type=hailo.FormatType.FLOAT32
+    )
+    with network_group.activate(network_group_params):
+        with hailo.InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
+
+            picam2 = Picamera2()
+            config = picam2.create_preview_configuration(main = {"size": (640, 640), "format": "RGB888"}, controls = {"FrameRate": 1} )
+            picam2.configure(config)
+            picam2.start()
+
+            while True:
+
+                frame = picam2.capture_array()
+                frame = cv2.resize(frame, (640, 640))
+                frame = frame.astype(np.float32)
+                frame = frame / 255.0
+                input_data = {input_vstream_info.name: np.expand_dims(frame, axis=0)}
+                    
+                results = infer_pipeline.infer(input_data)
+                print("Raw output keys: ", results.keys())
+    
+                cv2.imshow("Camera", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+            cv2.destroyAllWindows()
+            picam2.stop()
+```
+
+now when we run it we get no immediate error! we can see video!
+
+
 
 
