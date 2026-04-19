@@ -57,7 +57,7 @@ You can download HailoRT at https://hailo.ai/developer-zone/software-downloads/.
 You will need all three downloads, but first, check to see what you currently have setup....
 
 1. Execute the `lspci` command in your terminal. This lists all the PCI devices that are connected to your system. When we run it, we should see a line like `0001:01:00.0 Co-processor: Hailo Technologies Ltd. Hailo-8 AI Processor (rev 01)`. This verifies that the raspberry pi can physically see the hailo chip is detected at the hardware level and the PCIe connection is working. This does not mean that a driver has been installed, or that the system can actually use the chip.
-2. Execute the `lsmod` command in your terminal. This lists all the kernel modules (linux kernel drivers) that are currently loading. When we run it, we should see no rows that include the word 'hailo', since, at this point, no hailo driver is loaded. Verify this by running `lsmod | grep hailo`. With this, we can conclude that the PCIe driver needs to be installed.
+2. Execute the `lsmod` command in your terminal. This lists all the kernel modules (linux kernel drivers) that are currently loading. When we run it, we should see a row for `hailo_pci`. However, since, at this point, no hailo driver is loaded we should not see this. Verify this by running `lsmod | grep hailo`. With this, we can conclude that the PCIe driver needs to be installed.
 3. Execute the `which hailortcli` command. We get 'command not found. This concludes that the HailoRT command line tools are not installed. These are installed as part of the Hailort core runtime package.
 
 <br>
