@@ -52,45 +52,59 @@ You can download HailoRT at https://hailo.ai/developer-zone/software-downloads/.
 
 <br>
 
-### Step 0: Check system status before downloading anything
+### Step 0: Check the PCIe connection to the hailo device
 
-You will need all three downloads, but first, check to see what you currently have setup....
-
-1. Execute the `lspci` command in your terminal. This lists all the PCI devices that are connected to your system. When we run it, we should see a line like `0001:01:00.0 Co-processor: Hailo Technologies Ltd. Hailo-8 AI Processor (rev 01)`. This verifies that the raspberry pi can physically see the hailo chip is detected at the hardware level and the PCIe connection is working. This does not mean that a driver has been installed, or that the system can actually use the chip.
-2. Execute the `lsmod` command in your terminal. This lists all the kernel modules (linux kernel drivers) that are currently loading. When we run it, we should see a row for `hailo_pci`. However, since, at this point, no hailo driver is loaded we should not see this. Verify this by running `lsmod | grep hailo`. With this, we can conclude that the PCIe driver needs to be installed.
-3. Execute the `which hailortcli` command. We get 'command not found. This concludes that the HailoRT command line tools are not installed. These are installed as part of the Hailort core runtime package.
+1. `lspci`: This lists all the PCI devices that are connected to your system. E.g. if we were to run `lspci | grep hailo`, we would be asking linux 'Do you see the Hailo chip on the PCIe bus at all?'. When we run it, we should see a line like `0001:01:00.0 Co-processor: Hailo Technologies Ltd. Hailo-8 AI Processor (rev 01)`. This verifies that the raspberry pi can physically see the hailo chip and ensures that it is detected at the hardware level and the PCIe connection is working. This does not mean that a driver has been installed, or that the system can actually use the chip.
 
 <br>
 
-### Step 1: Install the HailoRT Core Runtime Library
+### Step 1: Install the PCIe Driver
 
-Download hailort_4.23.0_arm64.deb. Next, execute the command to install: `sudo apt install ./hailort_4.23.0_arm64.deb`. After installation run `sudo reboot`.
-
-Once installed, run the following commands to check the installation:
-
-1. Execute `which hailortcli`. Now you should see `/usr/bin/hailortcli`
-2. Execute `hailortcli scan`. This asks 'using the hailo runtiem and driver, can i find any connected hailo devices?'. Before we saw 'no command found'. Now, we see `Hailo devices not found.`. With this, we can verify that the runtime is installed and working, but it cannot reach the hardware through the driver (i.e. the driver still needs to be installed).
-
-Next, we need to install the driver. First lets check a few commands to see its status after installing the runtime;
-
-1. Execute `systemctl status hailort.service`.  This command asks systemd 'what is the current state of the hailoRT background service?'. Basically, it is asking if the background manager for the hailo 8 processor is installed, running, if it is started, and what process it is running. We should see that it is loaded (`/lib/systemd/system/hailort.service; enabled`), and that it is active and running.
-2. Execute `hailortcli fw-control identify`. This command queries the hailo device firmware and confirms it is detected. Basically it is asking 'can i talk to the firmware running on the hailo chip, and what exactly is it?'. When we run it we see `No device found`.
-3. Execute `ls /dev | grep hailo`. This command lists all the device files in /dev and shows any ones related to hailo (in linux, /dev is where hardware devices appear as files). When we run it we see nothing.
+1. `sudo apt install ./hailort-pcie-driver_4.23.0_all.deb`
+2. `sudo reboot`
 
 <br>
 
-### Step 2: Install the HailoRT PCIe driver
+### Step 2: Check PCIe driver installation
 
-Download hailort-pcie-driver_4.23.0_all.deb. Next, execute the command to install: `sudo apt install ./hailort-pcie-driver_4.23.0_all.deb`. After installation run `sudo reboot`.
+1. `lsmod`: This lists all the currently loaded linux kernel modules (drivers). Look for `hailo_pci 131072 0`. It shows the module/driver namee (hailo_pci), how much memory the driver uses in RAM, and how many other modules or processes are currently using it. This confirms that the driver was installed correctly, the kernel succesfully loaded it, and the sytem is ready to talk to the Hailo hardware.
+   
+2. `dmesg | grep hailo`: This shows the kernel log messages that contain 'hailo'. We should see that the hailo_pci driver is loaded, the pcei device is detected, the memory is mapped correctly, DMA is configured, firmware is uploaded, ai core is booted, and that the device is exposed as /dev/hailo0.
+   
+3. `ls /dev | grep hailo`. Linux exposes hardware as files inside /dev. This command checks 'did linux create a usable interface for the hailo chip?'. When we run it, we see `hailo0`. Thus, /dev/hailo0 is a special device file that programs can open like a file. HailoRT will use it to send inference jobs. This confirms that the driver is working, firmware is running, and hardware is accessible to applications.
 
-Once installed, run the following commands to check the installation:
+4. `lspci -k | grep -A 3 -i hailo`. This asks 'which driver is controlling the pcie device'? We shouldl see something like `Kernel driver in use: hailo_pci`.  This confirms that the driver didn't just load, it is actually bound to the hardware.
 
-1. Execute `hailortcli scan`. Now we see `Hailo Devices: [-] Device: 0001:01:00.0`. Now we see the kernel driver (hailo_pci) is loaded and functioning, and HailoRT can communicate with it.
-2. Execute `ls /dev | grep hailo`. Now we see `hailo0`. This confirms that the driver is loaded and active, and it has exposed a usable interface to the user space (o.e. programs can open /dev/hailo0 to talk to the chip)
+5. `ls -l /dev/hailo*`. This asks if /dev/hailo0 exists, who owns it, and what permission level it has. We should see something like `crw-rw---- 1 root hailo ... /dev/hailo0`.
+
+6. `lspci -tv`. This shows where the hailo chip sits in the PCIe tree.
+
+7. `modinfo hailo_pci`
+
+8. `ls /lib/firmware/hailo/`
 
 <br>
 
-### Step 3: Install the HailoRT Python bindings
+### Step 3: Install the Hailo Runtime
+
+1. `sudo apt install ./hailort_4.23.0_arm64.deb`
+2. `sudo reboot`
+
+<br>
+
+### Step 4: Check Hailo Runtime installation
+
+1. `which hailortcli`. We should see `/usr/bin/hailortcli`.
+   
+2. `hailortcli scan`. This asks 'using the hailo runtime and driver, can i find any connected hailo devices?'. We should see `Hailo Devices: [-] Device: 0001:01:00.0`. This shows that the kernel driver (hailo_pci) is loaded and functioning, and HailoRT can communicate with it.
+
+3. `systemctl status hailort.service`.  This command asks systemd 'what is the current state of the hailoRT background service?'. Basically, it is asking if the background manager for the hailo 8 processor is installed, running, if it is started, and what process it is running. We should see that it is loaded (`/lib/systemd/system/hailort.service; enabled`), and that it is active and running.
+
+4. `hailortcli fw-control identify`. This command queries the hailo device firmware and confirms it is detected. Basically it is asking 'can i talk to the firmware running on the hailo chip, and what exactly is it?'. When we run it we see `No device found`.
+   
+<br>
+
+### Step 5: Install the HailoRT Python bindings
 
 In order to use HailoRT from python, we need the bindings for our specific python version (3.11). To do this, we should use a virtual environment. This is the safe approach; Create a env, install it there:
 
@@ -108,9 +122,135 @@ rza@rp5-pios:~ $ source hailo_env/bin/activate
 Hailo Python ready
 ```
 
+<br>
 
+### Step 6: Troubleshooting
 
+Initially, after installing the pcie driver and the runtime 
 
+```
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $ dmesg | grep hailo [ 3.055171] hailo_pci: loading out-of-tree module taints kernel. [ 3.060775] hailo: Init module. driver version 4.23.0 [ 3.060867] hailo 0001:01:00.0: Probing on: 1e60:2864... [ 3.060870] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072 [ 3.060884] hailo 0001:01:00.0: enabling device (0000 -> 0002) [ 3.060889] hailo 0001:01:00.0: Probing: Device enabled [ 3.060904] hailo 0001:01:00.0: Probing: mapped bar 0 - 0000000054225f0c 16384 [ 3.060908] hailo 0001:01:00.0: Probing: mapped bar 2 - 000000006f5a0a16 4096 [ 3.060911] hailo 0001:01:00.0: Probing: mapped bar 4 - 0000000025430d0e 16384 [ 3.060914] hailo 0001:01:00.0: Probing: Setting max_desc_page_size to 16384, (page_size=16384) [ 3.060922] hailo 0001:01:00.0: Probing: Enabled 64 bit dma [ 3.060924] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers [ 3.060926] hailo 0001:01:00.0: Disabling ASPM L0s [ 3.060929] hailo 0001:01:00.0: Successfully disabled ASPM L0s [ 3.061009] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin [ 3.104052] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully [ 3.104059] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin [ 3.104083] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully [ 3.104085] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin [ 3.104092] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully [ 3.219863] hailo 0001:01:00.0: NNC Firmware loaded successfully [ 3.219870] hailo 0001:01:00.0: FW loaded, took 158 ms [ 3.231991] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0 (hailo_env) rza@rp5-pios:~/Desktop/streamer $ cat /sys/module/hailo_pci/parameters/* 2>/dev/null 0 N 0 N N 5 Y (hailo_env) rza@rp5-pios:~/Desktop/streamer $
+```
 
+Now, when we try to open a .hef model, and run infernece on a img, we get 
+
+```
+[HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) Traceback (most recent call last): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3573, in configure configured_ngs_handles = self._vdevice.configure(hef._hef, configure_params_by_name) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ hailo_platform.pyhailort._pyhailort.HailoRTStatusException: 8 The above exception was the direct cause of the following exception: Traceback (most recent call last): File "/home/rza/Desktop/streamer/camtest.py", line 8, in <module> network_group = target.configure(hef)[0] ^^^^^^^^^^^^^^^^^^^^^ File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3572, in configure with ExceptionWrapper(): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 122, in __exit__ self._raise_indicative_status_exception(value) File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 172, in _raise_indicative_status_exception raise self.create_exception_from_status(error_code) from libhailort_exception hailo_platform.pyhailort.pyhailort.HailoRTException: libhailort failed with error: 8 (HAILO_INTERNAL_FAILURE)
+```
+
+next we do 
+
+```
+sudo rm /etc/modprobe.d/hailo.conf
+sudo reboot
+```
+
+i get 
+
+```
+rza@rp5-pios:~ $ dmesg | grep hailo
+[ 3.088922] hailo_pci: loading out-of-tree module taints kernel.
+[ 3.094526] hailo: Init module. driver version 4.23.0
+[ 3.094590] hailo 0001:01:00.0: Probing on: 1e60:2864...
+[ 3.094593] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072
+[ 3.094608] hailo 0001:01:00.0: enabling device (0000 -> 0002)
+[ 3.094613] hailo 0001:01:00.0: Probing: Device enabled
+[ 3.094622] hailo 0001:01:00.0: Probing: mapped bar 0 - 00000000efc20fcf 16384
+[ 3.094626] hailo 0001:01:00.0: Probing: mapped bar 2 - 0000000061c0b09a 4096
+[ 3.094630] hailo 0001:01:00.0: Probing: mapped bar 4 - 00000000566d0cc4 16384
+[ 3.094633] hailo 0001:01:00.0: Probing: Setting max_desc_page_size to 16384, (page_size=16384) [ 3.094640] hailo 0001:01:00.0: Probing: Enabled 64 bit dma
+[ 3.094642] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers
+[ 3.094644] hailo 0001:01:00.0: Disabling ASPM L0s
+[ 3.094647] hailo 0001:01:00.0: Successfully disabled ASPM L0s
+[ 3.094723] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin
+[ 3.134787] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully
+[ 3.134796] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin
+[ 3.134819] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully
+[ 3.134822] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin
+[ 3.134830] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully
+[ 3.250599] hailo 0001:01:00.0: NNC Firmware loaded successfully
+[ 3.250607] hailo 0001:01:00.0: FW loaded, took 155 ms
+[ 3.261820] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
+
+rza@rp5-pios:~ $ source hailo_env/bin/activate
+
+(hailo_env) rza@rp5-pios:~ $ cd Desktop/ 
+(hailo_env) rza@rp5-pios:~/Desktop $ cd streamer/
+
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $ python camtest.py [HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8) Traceback (most recent call last): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3573, in configure configured_ngs_handles = self._vdevice.configure(hef._hef, configure_params_by_name) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ hailo_platform.pyhailort._pyhailort.HailoRTStatusException: 8 The above exception was the direct cause of the following exception: Traceback (most recent call last): File "/home/rza/Desktop/streamer/camtest.py", line 9, in <module> network_group = target.configure(hef, configure_params)[0] ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 3572, in configure with ExceptionWrapper(): File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 122, in __exit__ self._raise_indicative_status_exception(value) File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 172, in _raise_indicative_status_exception raise self.create_exception_from_status(error_code) from libhailort_exception hailo_platform.pyhailort.pyhailort.HailoRTException: libhailort failed with error: 8 (HAILO_INTERNAL_FAILURE)
+
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $ hailortcli scan
+Hailo Devices: [-] Device: 0001:01:00.0
+
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $
+```
+
+now do this
+
+```
+rza@rp5-pios:~ $ sudo nano /etc/modprobe.d/hailo.conf
+```
+
+add this to the .conf file
+
+```
+options hailo_pci force_desc_page_size=4096
+```
+
+finally
+
+```
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $ cat /etc/modprobe.d/hailo.conf
+options hailo_pci force_desc_page_size=4096
+
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $ sudo update-initramfs -u
+update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-v8 '/boot/initrd.img-6.12.75+rpt-rpi-v8' -> '/boot/firmware/initramfs8'
+update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-2712 '/boot/initrd.img-6.12.75+rpt-rpi-2712' -> '/boot/firmware/initramfs_2712'
+
+rza@rp5-pios:~ $ sudo reboot
+```
+
+check
+
+```
+rza@rp5-pios:~ $ dmesg | grep -i desc
+```
+
+```
+rza@rp5-pios:~ $ dmesg | grep hailo
+[ 3.160062] hailo_pci: loading out-of-tree module taints kernel.
+[ 3.167468] hailo: Init module. driver version 4.23.0
+[ 3.168684] hailo 0001:01:00.0: Probing on: 1e60:2864...
+[ 3.168688] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072
+[ 3.168701] hailo 0001:01:00.0: enabling device (0000 -> 0002) [ 3.168705] hailo 0001:01:00.0: Probing: Device enabled
+[ 3.168719] hailo 0001:01:00.0: Probing: mapped bar 0 - 00000000ba755f05 16384
+[ 3.168723] hailo 0001:01:00.0: Probing: mapped bar 2 - 00000000e1576ddb 4096
+[ 3.168725] hailo 0001:01:00.0: Probing: mapped bar 4 - 00000000b05f013b 16384
+[ 3.168728] hailo 0001:01:00.0: Probing: Force setting max_desc_page_size to 4096 (recommended value is 16384)
+[ 3.168735] hailo 0001:01:00.0: Probing: Enabled 64 bit dma
+[ 3.168738] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers
+[ 3.168740] hailo 0001:01:00.0: Disabling ASPM L0s
+[ 3.168743] hailo 0001:01:00.0: Successfully disabled ASPM L0s
+[ 3.168817] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin
+[ 3.213421] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully [ 3.213429] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin
+[ 3.213453] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully [ 3.213455] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin
+[ 3.213463] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully
+[ 3.329233] hailo 0001:01:00.0: NNC Firmware loaded successfully
+[ 3.329240] hailo 0001:01:00.0: FW loaded, took 160 ms
+[ 3.341398] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
+
+rza@rp5-pios:~ $ source hailo_env/bin/activate
+(hailo_env) rza@rp5-pios:~ $ cd Desktop/
+(hailo_env) rza@rp5-pios:~/Desktop $ cd streamer/
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $ python camtest.py
+[HailoRT] [error] CHECK failed - The given output format type UINT8 is not supported, should be HAILO_FORMAT_TYPE_FLOAT32
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
+[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2) Traceback (most recent call last): File "/home/rza/Desktop/streamer/camtest.py", line 16, in <module> with hailo.InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline: File "/home/rza/hailo_env/lib/python3.11/site-packages/hailo_platform/pyhailort/pyhailort.py", line 939, in __enter__ self._infer_pipeline = _pyhailort.InferVStreams(self._configured_net_group._configured_network, ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ hailo_platform.pyhailort._pyhailort.HailoRTStatusException: 2
+
+(hailo_env) rza@rp5-pios:~/Desktop/streamer $
+```
+
+finally, use FLOAT32 rather than Uint8 in the code,  and when we run it now, it works.
 
 
