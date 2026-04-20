@@ -178,71 +178,7 @@ We will choose the first option...
 
 `/etc/modprobe.d/hailo.conf` is a linux kernel module configuration file. It contains settings that control how the hailo kernel module (hailo driver) is loaded at boot time. Add `options hailo_pci force_desc_page_size=4096` to this file via `sudo nano /etc/modprobe.d/hailo.conf`. After updating the file, run `sudo update-initramfs -u`. `iniramfs` is the intitial RAM filesystem. It's a small temporary filesystem linux loads into memory at boot that contains essential drivers, boot scripts, and hardware configuraiton needed to start the system. PCIe drivers are loaded very early in boot, sometimes inside initramfs. So, if the initramfs is not updated the nthe boot process might use the old cached version and the driver might initialize with wrong settings first. When we run this, it rebuilds the existing initramfs and includes any updated configuration files and module options (e.g. it rebuilds the early boot image and pulls in `/etc/modprobe.d/*` changes0. The output of this command shows `update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-v8 '/boot/initrd.img-6.12.75+rpt-rpi-v8' -> '/boot/firmware/initramfs8'`. This is the ARM64 standard 64bit pi kernel. It took this kernel and rebuilt the initramfs (early boot system image) and saved it to `/boot/firmware/`. Finally, run `sudo reboot`. Now, during boot when the hailo PCIe driver is loaded, its internal parameter `force_desc_page_size` will be set to 4KB. E.g. if we run `dmesg | grep hailo` after boot, you should see `Force setting max_desc_page_size to 4096 (recommended value is 16384)`.
 
-Now lets run our script again. The previous error is gone, but now we get the error: `The given output format type UINT8 is not supported, should be HAILO_FORMAT_TYPE_FLOAT32`
-
-Great, now try running again...
-
-```
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $ python camtest.py
-[HailoRT] [error] CHECK failed - The given output format type UINT8 is not supported, should be HAILO_FORMAT_TYPE_FLOAT32
-[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
-[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
-[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INVALID_ARGUMENT(2)
-```
-
-Make the final changes to fix tehre reminaing error 
-
-```
-from picamera2 import Picamera2
-import cv2
-import hailo_platform as hailo
-import numpy as np
-
-hef = hailo.HEF("yolov8s.hef")
-with hailo.VDevice() as target:
-
-    configure_params = hailo.ConfigureParams.create_from_hef(hef, interface=hailo.HailoStreamInterface.PCIe)
-    network_group = target.configure(hef, configure_params)[0]
-    network_group_params = network_group.create_params() input_vstream_info = hef.get_input_vstream_infos()[0]
-    output_vstream_infos = hef.get_output_vstream_infos()
-    input_vstreams_params = hailo.InputVStreamParams.make_from_network_group(
-        network_group,
-        quantized=False,
-        format_type=hailo.FormatType.FLOAT32
-    )
-    output_vstreams_params = hailo.OutputVStreamParams.make_from_network_group(
-        network_group,
-        quantized=False,
-        format_type=hailo.FormatType.FLOAT32
-    )
-    with network_group.activate(network_group_params):
-        with hailo.InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
-
-            picam2 = Picamera2()
-            config = picam2.create_preview_configuration(main = {"size": (640, 640), "format": "RGB888"}, controls = {"FrameRate": 1} )
-            picam2.configure(config)
-            picam2.start()
-
-            while True:
-
-                frame = picam2.capture_array()
-                frame = cv2.resize(frame, (640, 640))
-                frame = frame.astype(np.float32)
-                frame = frame / 255.0
-                input_data = {input_vstream_info.name: np.expand_dims(frame, axis=0)}
-                    
-                results = infer_pipeline.infer(input_data)
-                print("Raw output keys: ", results.keys())
-    
-                cv2.imshow("Camera", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-
-            cv2.destroyAllWindows()
-            picam2.stop()
-```
-
-now when we run it we get no immediate error! we can see video!
+Now when we run our script again, everything works as expected.
 
 
 
