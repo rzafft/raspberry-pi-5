@@ -124,135 +124,61 @@ Hailo Python ready
 
 <br>
 
-### Step 6: Troubleshooting
+### Important Troubleshooting to take Note of
 
-We ran into an issue intially after installation. First run `dmesg | grep hailo`. You will get the following:
+We ran into an issue intially after installation. 
 
-```
-[ 3.055171] hailo_pci: loading out-of-tree module taints kernel.
-[ 3.060775] hailo: Init module. driver version 4.23.0
-[ 3.060867] hailo 0001:01:00.0: Probing on: 1e60:2864...
-[ 3.060870] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072
-[ 3.060884] hailo 0001:01:00.0: enabling device (0000 -> 0002)
-[ 3.060889] hailo 0001:01:00.0: Probing: Device enabled
-[ 3.060904] hailo 0001:01:00.0: Probing: mapped bar 0 - 0000000054225f0c 16384
-[ 3.060908] hailo 0001:01:00.0: Probing: mapped bar 2 - 000000006f5a0a16 4096
-[ 3.060911] hailo 0001:01:00.0: Probing: mapped bar 4 - 0000000025430d0e 16384
-[ 3.060914] hailo 0001:01:00.0: Probing: Setting max_desc_page_size to 16384, (page_size=16384) [ 3.060922] hailo 0001:01:00.0: Probing: Enabled 64 bit dma
-[ 3.060924] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers
-[ 3.060926] hailo 0001:01:00.0: Disabling ASPM L0s
-[ 3.060929] hailo 0001:01:00.0: Successfully disabled ASPM L0s
-[ 3.061009] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin
-[ 3.104052] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully
-[ 3.104059] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin
-[ 3.104083] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully [ 3.104085] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin
-[ 3.104092] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully
-[ 3.219863] hailo 0001:01:00.0: NNC Firmware loaded successfully
-[ 3.219870] hailo 0001:01:00.0: FW loaded, took 158 ms
-[ 3.231991] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
-```
-
-Now we have this script:
+We have this code:
 
 ```
-from picamera2 import Picamera2
-import cv2
-import hailo_platform as hailo
-import numpy as np
-
+...
 hef = hailo.HEF("yolov8s.hef")
 with hailo.VDevice() as target:
-
     configure_params = hailo.ConfigureParams.create_from_hef(hef, interface=hailo.HailoStreamInterface.PCIe)
     network_group = target.configure(hef, configure_params)[0]
     network_group_params = network_group.create_params() input_vstream_info = hef.get_input_vstream_infos()[0]
     output_vstream_infos = hef.get_output_vstream_infos()
     input_vstreams_params = hailo.InputVStreamParams.make_from_network_group(network_group, quantized=False, format_type=hailo.FormatType.FLOAT32)
     output_vstreams_params = hailo.OutputVStreamParams.make_from_network_group(network_group, quantized=False, format_type=hailo.FormatType.FLOAT32)
-
     with network_group.activate(network_group_params):
         with hailo.InferVStreams(network_group, input_vstreams_params, output_vstreams_params) as infer_pipeline:
-
             picam2 = Picamera2()
             config = picam2.create_preview_configuration(main = {"size": (640, 640), "format": "RGB888"}, controls = {"FrameRate": 1} )
             picam2.configure(config)
             picam2.start()
-
             while True:
-
                 frame = picam2.capture_array()
                 frame_resized = cv2.resize(frame, (640, 640))
                 frame_resized_uint8 = np.expand_dims(frame_resized.astype(np.float32), axis=0)
                 input_data = {input_vstream_info.name: frame_resized_uint8}
-    
                 results = infer_pipeline.infer(input_data)
-                print("Raw output keys: ", results.keys())
-    
-                cv2.imshow("Camera", frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-
-            cv2.destroyAllWindows()
-            picam2.stop()
+                ...
 ```
 
-When we run it we get the following
+When we run the code we get:
 
 ```
 [HailoRT] [error] CHECK failed - max_desc_page_size given 16384 is bigger than hw max desc page size 4096
 [HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8)
-[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8)
-[HailoRT] [error] CHECK_SUCCESS failed with status=HAILO_INTERNAL_FAILURE(8)
 libhailort failed with error: 8 (HAILO_INTERNAL_FAILURE)
 ```
 
-The primary error here is a driver/hardware mismatch: `max_desc_page_size given 16384 is bigger than hw max desc page size 4096`
+First, run dmesg | grep hailo and take note of this line: `Probing: Setting max_desc_page_size to 16384, (page_size=16384)`. This tells us that the Hailo driver is using 16 KB (16384 bytes) as the page size for DMA transfers. DMA (Direct Memory Access) is a hardware feature that allows devices like the Hailo accelerator to read and write system memory directly, without constant CPU involvement. Instead of the CPU copying image data into buffers and feeding it to the accelerator, the Hailo chip reads and writes data directly to and from RAM. DMA operates on memory buffers that are aligned with system memory pages, so this result tells us the driver is transferring data in 16 KB chunks. Note, that the driver is following the OS page size. So 16KB is really what the os is using for DMA, not just the driver. We can confirm the page size for the os with `getconf PAGESIZE`. 
 
-Think of the hailo chip as a mail sorting machine: The driver tells it 'i will send you big envelopees (16kb pages)'. But the hardware replies: 'I only accept small envelopes (4kb max)'. So the system refuses to start. That is what is happening here:
+Now, look at the error: `max_desc_page_size given 16384 is bigger than hw max desc page size 4096`. The issue arises because the Hailo hardware has a strict limit: the maximum descriptor page size is 4096 bytes (4 KB). Since the driver is using 16 KB, this exceeds what the hardware supports. If the driver uses a page size larger than the hardware limit, the device could attempt to access invalid memory regions, which would lead to corrupted transfers or crashes. To prevent this, HailoRT performs a check.
 
-max_desc_page_size controls DMA descriptor buffer sizes. Our driver defaulted to 16384 bytes,  but our hailo8 hardware supports 4096 bytes max. So, HailoRT aborts during configure() with HAILO_INTERNAL_FAILURE (8). 
+More explicitly, when the code runs `hef = hailo.HEF("yolov8s.hef"); target.configure(...)`, HailoRT tries to set up DMA buffers and ensure the driver configuration is compatible with the hardware. During this process, it detects that the driver is using 16 KB pages, while the hardware only supports 4 KB, and throws the error. 
 
-Next, edit the hailo configuration file and add this line `options hailo_pci force_desc_page_size=4096`
+To fix this issue, the system must use 4 KB memory pages so it matches what the Hailo hardware supports. So, we have two options:
 
-```
-rza@rp5-pios:~ $ sudo nano /etc/modprobe.d/hailo.conf
-options hailo_pci force_desc_page_size=4096
-```
+1. We could configure the Hailo driver to force a smaller DMA descriptor page size (4 KB), even though the system uses 16 KB pages. This is a quick and practical workaround, but it doesn’t change the underlying OS page size and may have minor performance or compatibility tradeoffs. This keeps your current OS configuration, and just tells the hailo driver 'ignore the system's 16KB page size and use 4KB for DMA descriptorrs'. 
+2. We could switch to a system/kernel that uses 4 KB memory pages. This is the proper long-term solution because it aligns the OS, driver, and hardware, eliminating the mismatch entirely and ensuring maximum stability and performance. If we choose this option, you have to literally reflash the OS or rebuild the kernel.
 
-finally, make sure the new configuration is applied every boot, and reboot
+We will choose the first option...
 
-```
-(hailo_env) rza@rp5-pios:~/Desktop/streamer $ sudo update-initramfs -u
-update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-v8 '/boot/initrd.img-6.12.75+rpt-rpi-v8' -> '/boot/firmware/initramfs8'
-update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-2712 '/boot/initrd.img-6.12.75+rpt-rpi-2712' -> '/boot/firmware/initramfs_2712'
+`/etc/modprobe.d/hailo.conf` is a linux kernel module configuration file. It contains settings that control how the hailo kernel module (hailo driver) is loaded at boot time. Add `options hailo_pci force_desc_page_size=4096` to this file via `sudo nano /etc/modprobe.d/hailo.conf`. After updating the file, run `sudo update-initramfs -u`. `iniramfs` is the intitial RAM filesystem. It's a small temporary filesystem linux loads into memory at boot that contains essential drivers, boot scripts, and hardware configuraiton needed to start the system. PCIe drivers are loaded very early in boot, sometimes inside initramfs. So, if the initramfs is not updated the nthe boot process might use the old cached version and the driver might initialize with wrong settings first. When we run this, it rebuilds the existing initramfs and includes any updated configuration files and module options (e.g. it rebuilds the early boot image and pulls in `/etc/modprobe.d/*` changes0. The output of this command shows `update-initramfs: Generating /boot/initrd.img-6.12.75+rpt-rpi-v8 '/boot/initrd.img-6.12.75+rpt-rpi-v8' -> '/boot/firmware/initramfs8'`. This is the ARM64 standard 64bit pi kernel. It took this kernel and rebuilt the initramfs (early boot system image) and saved it to `/boot/firmware/`. Finally, run `sudo reboot`. Now, during boot when the hailo PCIe driver is loaded, its internal parameter `force_desc_page_size` will be set to 4KB. E.g. if we run `dmesg | grep hailo` after boot, you should see `Force setting max_desc_page_size to 4096 (recommended value is 16384)`.
 
-rza@rp5-pios:~ $ sudo reboot
-```
-
-now, run `dmesg | grep hailo`, you should see `Force setting max_desc_page_size to 4096`:
-
-```
-[ 3.160062] hailo_pci: loading out-of-tree module taints kernel.
-[ 3.167468] hailo: Init module. driver version 4.23.0
-[ 3.168684] hailo 0001:01:00.0: Probing on: 1e60:2864...
-[ 3.168688] hailo 0001:01:00.0: Probing: Allocate memory for device extension, 9072
-[ 3.168701] hailo 0001:01:00.0: enabling device (0000 -> 0002) [ 3.168705] hailo 0001:01:00.0: Probing: Device enabled
-[ 3.168719] hailo 0001:01:00.0: Probing: mapped bar 0 - 00000000ba755f05 16384
-[ 3.168723] hailo 0001:01:00.0: Probing: mapped bar 2 - 00000000e1576ddb 4096
-[ 3.168725] hailo 0001:01:00.0: Probing: mapped bar 4 - 00000000b05f013b 16384
-[ 3.168728] hailo 0001:01:00.0: Probing: Force setting max_desc_page_size to 4096 (recommended value is 16384)
-[ 3.168735] hailo 0001:01:00.0: Probing: Enabled 64 bit dma
-[ 3.168738] hailo 0001:01:00.0: Probing: Using userspace allocated vdma buffers
-[ 3.168740] hailo 0001:01:00.0: Disabling ASPM L0s
-[ 3.168743] hailo 0001:01:00.0: Successfully disabled ASPM L0s
-[ 3.168817] hailo 0001:01:00.0: Writing file hailo/hailo8_fw.bin
-[ 3.213421] hailo 0001:01:00.0: File hailo/hailo8_fw.bin written successfully [ 3.213429] hailo 0001:01:00.0: Writing file hailo/hailo8_board_cfg.bin
-[ 3.213453] hailo 0001:01:00.0: File hailo/hailo8_board_cfg.bin written successfully [ 3.213455] hailo 0001:01:00.0: Writing file hailo/hailo8_fw_cfg.bin
-[ 3.213463] hailo 0001:01:00.0: File hailo/hailo8_fw_cfg.bin written successfully
-[ 3.329233] hailo 0001:01:00.0: NNC Firmware loaded successfully
-[ 3.329240] hailo 0001:01:00.0: FW loaded, took 160 ms
-[ 3.341398] hailo 0001:01:00.0: Probing: Added board 1e60-2864, /dev/hailo0
-```
+Now lets run our script again. The previous error is gone, but now we get the error: `The given output format type UINT8 is not supported, should be HAILO_FORMAT_TYPE_FLOAT32`
 
 Great, now try running again...
 
